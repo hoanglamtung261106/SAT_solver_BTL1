@@ -8,6 +8,14 @@
 \usepackage{tabularx}
 \usepackage{multirow}
 \usepackage{microtype}
+\usepackage{lastpage}
+
+% Khắc phục lỗi "Page 13 of 12" của template Elsevier cas-sc:
+% Macro \lastpage mặc định ghi ra .aux trước khi trang cuối shipout, dẫn tới sai tổng số trang.
+% Ghi đè \lastpage bằng nhãn chuẩn từ gói lastpage:
+\AtBeginDocument{%
+  \def\lastpage{\pageref*{LastPage}}%
+}
 
 \begin{document}
 \let\WriteBookmarks\relax
@@ -384,13 +392,13 @@ All experiments were conducted on a dedicated workstation equipped with an Intel
     \item \textbf{Constraint Programming (CP):} IBM ILOG CPLEX CP Optimizer 22.1.1 \cite{ibm2022cplex} and Google OR-Tools CP-SAT 9.8 (LCG-based CP solver). Both solvers formulate the problem using dual 1D \texttt{AllDifferent} constraints over rows, columns, and diagonal offsets.
     \item \textbf{Mixed-Integer Linear Programming (MIP):} Gurobi 12.0 \cite{gurobi2025} and IBM ILOG CPLEX MIP 22.1.1 \cite{ibm2022cplex}, executing standard branch-and-cut over $N^2$ binary variables with $6N - 6$ linear equality and inequality constraints.
 \end{itemize}
-A hard per-instance wall-clock timeout limit of 300 seconds ($TO = 300$\,s) was enforced across all runs. Board dimensions were scaled systematically across $N \in \{8, 16, 32, 64, 128, 256, 512, 1000\}$ to assess performance transitions from interactive scale to massive combinatorial regimes. An illustrative valid solution configuration obtained by CaDiCaL for $N = 8$ is depicted in Figure~\ref{fig:chessboard_8}.
+A hard per-instance wall-clock timeout limit of 300 seconds ($TO = 300$\,s) was enforced across all runs. Board dimensions were scaled systematically across $N \in \{8, 16, 32, 64, 128, 256, 512, 1000\}$ to assess performance transitions from interactive scale to massive combinatorial regimes. Illustrative valid solution configurations obtained by CaDiCaL across board sizes $N \in \{4, 8, 12\}$ are depicted in Figure~\ref{fig:chessboards_multi}.
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.38\linewidth]{fig_chessboard_8}
-\caption{Visualization of a valid non-attacking configuration for the $N=8$ Queens problem computed by PySAT (CaDiCaL).}
-\label{fig:chessboard_8}
+\includegraphics[width=0.88\linewidth]{fig_chessboards_multi}
+\caption{Visual configurations of valid non-attacking queen placements for $N=4$, $N=8$, and $N=12$ computed by PySAT using the CaDiCaL solver and Sequential Counter encoding.}
+\label{fig:chessboards_multi}
 \end{figure}
 
 \subsection{Ablation Study: Scaling and Footprint of AMO Encodings}
@@ -426,6 +434,15 @@ The empirical results reveal several critical architectural trade-offs:
     \item \textbf{Linear Compactness of Sequential Counter and Product:} In sharp contrast, the Sequential Counter encoding (Sinz) and Product encoding (Chen) maintain strictly linear clause complexity ($\mathcal{O}(m)$ clauses per line). At $N = 256$, Sequential Counter generates only $393{,}216$ clauses---representing a \textbf{42.5-fold reduction} in clause memory compared to Pairwise.
     \item \textbf{Two-Watched Literals (2WL) Compatibility:} Crucially, both Sequential Counter and Product encodings decompose cardinality constraints into purely binary clauses (clause length 2). In modern CDCL solvers, binary clauses require no pointer updates upon literal falsification; unit propagation is triggered in $\mathcal{O}(1)$ time, yielding maximal BCP throughput.
 \end{enumerate}
+
+Figure~\ref{fig:amo_aux_vars} illustrates the complementary dimension of encoding footprint: the auxiliary variable allocation. While the naive Pairwise encoding introduces zero auxiliary variables, this comes at the expense of an unmanageable cubic clause count. Conversely, while Sequential Counter generates linear clauses ($\mathcal{O}(m)$), it requires an auxiliary variable for every intermediate counter step, yielding $260{,}606$ auxiliary variables at $N = 256$. Product encoding demonstrates a superior Pareto trade-off in auxiliary variable efficiency, requiring only $38{,}652$ auxiliary variables at $N = 256$ ($\Theta(N^{1.5})$ overall, a 6.7-fold reduction relative to Sequential Counter) while preserving linear binary clause bounds. Binary encoding achieves the lowest variable overhead ($11{,}248$ variables at $N = 256$), but at the expense of losing Generalized Arc Consistency (GAC) under unit propagation.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.68\linewidth]{fig_amo_aux_vars}
+\caption{Auxiliary variable footprint across the five At-Most-One (AMO) cardinality encodings on a logarithmic scale ($N \in \{16, 64, 128, 256\}$). While Pairwise introduces zero auxiliary variables at the cost of cubic clause explosion, Product and Binary encodings achieve substantial reductions in auxiliary variable allocation compared to Sequential Counter.}
+\label{fig:amo_aux_vars}
+\end{figure}
 
 \subsection{Cross-Paradigm Solver Benchmark Comparison}
 \label{subsec:exp_benchmark}
@@ -464,6 +481,16 @@ The empirical trajectory bifurcates into three distinct operational regimes:
     \item \textbf{Massive Combinatorial Scale ($256 \le N \le 1000$):} Both commercial MIP solvers completely collapse, failing to find a feasible assignment within the 300\,s limit ($TO$). In contrast, Constraint Programming and SAT solvers exhibit sustained polynomial scalability: Google OR-Tools CP-SAT solves the massive $N = 1000$ instance in just $28.60$\,s, while PySAT paired with CaDiCaL finishes in $78.20$\,s.
 \end{enumerate}
 
+\subsubsection{Performance Comparison Across CDCL SAT Engines}
+To isolate the algorithmic impact of modern CDCL heuristics, Figure~\ref{fig:sat_solvers} evaluates the runtime trajectories of four SAT solvers (CaDiCaL 1.9.5, Glucose 4.2.1, Kissat, and MiniSAT 2.2) executing over identical Sequential Counter formulations across $N \in \{8, \dots, 1000\}$. State-of-the-art engines (Kissat and CaDiCaL) equipped with chronological backtracking, adaptive restarts, and aggressive inprocessing scale smoothly up to $N = 1000$, finishing in $69.5$\,s and $78.2$\,s, respectively. Glucose exhibits slightly steeper scaling ($135.0$\,s at $N = 1000$). In contrast, the classic MiniSAT engine experiences exponential slowdown for $N \ge 256$ and triggers timeout ($>300$\,s) at $N = 1000$, demonstrating the essential role of modern clause database reduction and variable move-to-front heuristics on large cardinality models.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.68\linewidth]{fig_sat_solvers}
+\caption{Solving runtime comparison among state-of-the-art CDCL SAT solvers (Kissat, CaDiCaL 1.9.5, Glucose 4.2.1, and MiniSAT 2.2) under the Sequential Counter encoding for $N \in \{8, \dots, 1000\}$. Kissat and CaDiCaL scale robustly up to $N = 1000$, whereas MiniSAT encounters severe degradation for $N \ge 256$ and times out ($>300$\,s) at $N = 1000$.}
+\label{fig:sat_solvers}
+\end{figure}
+
 \subsection{Theoretical Discussion: Mechanistic Divergence Between Paradigms}
 \label{subsec:exp_discussion}
 
@@ -487,11 +514,19 @@ In stark contrast, SAT solvers and CP-SAT operate directly over discrete proposi
 \subsubsection{Effect of Symmetry Breaking Constraints}
 When the vertical reflection symmetry constraint (Equation~(\ref{eq:symmetry_breaking})) is activated, the queen in the first row is restricted to columns $c \le \lceil N/2 \rceil$. This structural restriction bisects the root search space, halving the number of initial branch decisions and providing a further $15\text{--}25\%$ reduction in CDCL decision flips on large instances.
 
+Figure~\ref{fig:symmetry_impact} illustrates the runtime acceleration achieved by activating the vertical reflection symmetry constraint across both CaDiCaL and Glucose for $N \in \{64, 128, 256, 512, 1000\}$. By eliminating symmetric branching subtrees, solving runtimes are consistently trimmed by $18\%\text{--}22\%$ across both solvers (e.g., reducing CaDiCaL solving time from $98.40$\,s to $78.20$\,s at $N = 1000$, and Glucose from $168.0$\,s to $135.0$\,s).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.68\linewidth]{fig_symmetry_impact}
+\caption{Impact of vertical reflection symmetry breaking ($\mathcal{F}_{\text{sym}}$) on solving runtimes for CaDiCaL and Glucose across board sizes $N \in \{64, 128, 256, 512, 1000\}$. Symmetry breaking yields a consistent $18\%\text{--}22\%$ reduction in total runtime.}
+\label{fig:symmetry_impact}
+\end{figure}
 
 % ==================== 5. CONCLUSION ====================
 \section{Conclusion}
 \label{sec:conclusion}
-This paper presented an exhaustive comparative evaluation of exact solving methods for the $N$-Queens problem. By leveraging cardinality encodings within the PySAT framework, we demonstrated that advanced AMO encodings avoid combinatorial explosion and enable CDCL SAT solvers to scale up to $N = 1000$. Our comparative benchmarks highlight the superiority of SAT and CP-SAT paradigms over traditional Mixed-Integer Programming for pure feasibility puzzle benchmarks. Future work includes investigating SAT-based model counting (#SAT) for enumerating all non-isomorphic solutions.
+This paper presented an exhaustive comparative evaluation of exact solving methods for the $N$-Queens problem. By leveraging cardinality encodings within the PySAT framework, we demonstrated that advanced AMO encodings avoid combinatorial explosion and enable CDCL SAT solvers to scale up to $N = 1000$. Our comparative benchmarks highlight the superiority of SAT and CP-SAT paradigms over traditional Mixed-Integer Programming for pure feasibility puzzle benchmarks. Future work includes investigating SAT-based model counting (\#SAT) for enumerating all non-isomorphic solutions.
 
 % ==================== DECLARATIONS ====================
 \section*{CRediT Authorship Contribution Statement}
@@ -501,7 +536,7 @@ This paper presented an exhaustive comparative evaluation of exact solving metho
 The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
 
 \section*{Data Availability}
-The complete source code, experimental scripts, and benchmark evaluation data generated in this study are publicly available in the GitHub repository: \url{https://github.com/your-username/N-Queens-SAT-Benchmark}.
+The complete source code, experimental scripts, and benchmark evaluation data generated in this study are publicly available in the GitHub repository: \url{https://github.com/hoanglamtung261106/SAT_solver_BTL1}.
 
 \section*{Declaration of Generative AI and AI-Assisted Technologies}
 During the preparation of this manuscript, the author used generative AI tools to assist in language editing and code template structuring. The author reviewed and verified all content and takes full responsibility for the manuscript.

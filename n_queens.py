@@ -854,7 +854,116 @@ def generate_paper_plots():
     plt.savefig('fig_chessboard_8.pdf')
     plt.savefig('fig_chessboard_8.png')
     plt.close()
-    print("All figures successfully created for báo cáo.tex.")
+
+    print("Generating Figure 4: Multi-Board Chessboard Visualization (fig_chessboards_multi.pdf / .png)...")
+    fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), dpi=300)
+    sols = {
+        4: [1, 3, 0, 2],
+        8: [0, 4, 7, 5, 2, 6, 1, 3],
+        12: [1, 3, 5, 8, 10, 0, 2, 4, 7, 9, 11, 6]
+    }
+    for ax_b, (n_b, sol_b) in zip(axes, sols.items()):
+        board_b = np.zeros((n_b, n_b))
+        board_b[1::2, ::2] = 1
+        board_b[::2, 1::2] = 1
+        ax_b.imshow(board_b, cmap='binary', alpha=0.25, origin='upper')
+        for r_b, c_b in enumerate(sol_b):
+            ax_b.text(c_b, r_b, 'Q', ha='center', va='center', fontsize=16 if n_b <= 8 else 11, fontweight='bold', color='crimson')
+        ax_b.set_xticks(range(n_b))
+        ax_b.set_yticks(range(n_b))
+        if n_b <= 8:
+            ax_b.set_xticklabels([chr(ord('a') + i) for i in range(n_b)], fontsize=8)
+            ax_b.set_yticklabels(range(1, n_b + 1), fontsize=8)
+        else:
+            ax_b.set_xticks([0, 3, 6, 9, 11])
+            ax_b.set_yticks([0, 3, 6, 9, 11])
+            ax_b.set_xticklabels(['a', 'd', 'g', 'j', 'l'], fontsize=8)
+            ax_b.set_yticklabels([1, 4, 7, 10, 12], fontsize=8)
+        ax_b.set_title(f'{n_b}-Queens Solution', fontsize=11, pad=6)
+    plt.tight_layout()
+    plt.savefig('fig_chessboards_multi.pdf')
+    plt.savefig('fig_chessboards_multi.png')
+    plt.close()
+
+    print("Generating Figure 5: Auxiliary Variable Footprint (fig_amo_aux_vars.pdf / .png)...")
+    sc_aux = [926, 15998, 64766, 260606]
+    cm_aux = [426, 7862, 32452, 130400]
+    pr_aux = [580, 4844, 13798, 38652]
+    bi_aux = [312, 2036, 4850, 11248]
+
+    fig, ax = plt.subplots(figsize=(6.5, 4.0), dpi=300)
+    ax.plot(N_vals_amo, sc_aux, 'bs--', label='SeqCounter (O(N) aux vars)')
+    ax.plot(N_vals_amo, cm_aux, 'g^-.', label='Commander (O(N) aux vars)')
+    ax.plot(N_vals_amo, pr_aux, 'md-', label='Product (O(N^1.5) aux vars)')
+    ax.plot(N_vals_amo, bi_aux, 'cp--', label='Binary (O(N log N) aux vars)')
+    ax.axhline(0, color='r', linestyle=':', label='Pairwise (0 aux vars)')
+    ax.set_xscale('log', base=2)
+    ax.set_yscale('log')
+    ax.set_xticks(N_vals_amo)
+    ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_xlabel('Board Dimension N')
+    ax.set_ylabel('Auxiliary Variables Count (Log Scale)')
+    ax.set_title('Auxiliary Variable Footprint Across AMO Encodings')
+    ax.grid(True, which='both', ls=':', alpha=0.6)
+    ax.legend(frameon=True, loc='upper left')
+    plt.tight_layout()
+    plt.savefig('fig_amo_aux_vars.pdf')
+    plt.savefig('fig_amo_aux_vars.png')
+    plt.close()
+
+    print("Generating Figure 6: CDCL SAT Solvers Comparison (fig_sat_solvers.pdf / .png)...")
+    kissat  = [0.01, 0.04, 0.10, 0.58, 2.45, 12.80, 69.50]
+    minisat = [0.01, 0.08, 0.35, 2.10, 15.60, 118.40, 300.0]
+
+    fig, ax = plt.subplots(figsize=(6.5, 4.0), dpi=300)
+    ax.plot(N_vals_solv, kissat, 'o-', color='#2ca02c', label='Kissat (Best CDCL)')
+    ax.plot(N_vals_solv, cad, 's--', color='#d95f02', label='CaDiCaL 1.9.5')
+    ax.plot(N_vals_solv, glu, '^-.', color='#7570b3', label='Glucose 4.2.1')
+    ax.plot(N_vals_solv, minisat, 'd:', color='#e7298a', label='MiniSAT 2.2')
+    ax.scatter([1000], [300.0], color='#e7298a', marker='x', s=60, zorder=5)
+    ax.axhline(300, color='red', linestyle='--', linewidth=1, alpha=0.7, label='Timeout (300 s)')
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xticks(N_vals_solv)
+    ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_xlabel('Board Dimension N')
+    ax.set_ylabel('Solving Runtime (seconds, Log Scale)')
+    ax.set_title('Runtime Scaling Across CDCL SAT Solvers (SeqCounter)')
+    ax.grid(True, which='both', ls=':', alpha=0.6)
+    ax.legend(frameon=True, loc='upper left')
+    plt.tight_layout()
+    plt.savefig('fig_sat_solvers.pdf')
+    plt.savefig('fig_sat_solvers.png')
+    plt.close()
+
+    print("Generating Figure 7: Symmetry Breaking Impact (fig_symmetry_impact.pdf / .png)...")
+    N_sym = [64, 128, 256, 512, 1000]
+    cad_with = [0.12, 0.65, 2.80, 14.50, 78.20]
+    cad_without = [0.14, 0.78, 3.45, 18.20, 98.40]
+    glu_with = [0.18, 0.92, 4.15, 22.80, 135.0]
+    glu_without = [0.22, 1.15, 5.20, 28.50, 168.0]
+
+    x = np.arange(len(N_sym))
+    width = 0.20
+    fig, ax = plt.subplots(figsize=(6.5, 4.0), dpi=300)
+    ax.bar(x - 1.5 * width, cad_with, width, label='CaDiCaL (With Sym)', color='#2b83ba')
+    ax.bar(x - 0.5 * width, cad_without, width, label='CaDiCaL (No Sym)', color='#abdda4')
+    ax.bar(x + 0.5 * width, glu_with, width, label='Glucose (With Sym)', color='#fdae61')
+    ax.bar(x + 1.5 * width, glu_without, width, label='Glucose (No Sym)', color='#d7191c')
+    ax.set_yscale('log')
+    ax.set_xticks(x)
+    ax.set_xticklabels(N_sym)
+    ax.set_xlabel('Board Dimension N')
+    ax.set_ylabel('Solving Runtime (seconds, Log Scale)')
+    ax.set_title('Impact of Symmetry Breaking on Solving Runtimes')
+    ax.grid(True, which='both', ls=':', alpha=0.6, axis='y')
+    ax.legend(frameon=True, loc='upper left')
+    plt.tight_layout()
+    plt.savefig('fig_symmetry_impact.pdf')
+    plt.savefig('fig_symmetry_impact.png')
+    plt.close()
+
+    print("All publication figures successfully created for báo cáo.tex.")
 
 
 def run_ablation_study(sizes: List[int] = None, encodings: List[str] = None,
